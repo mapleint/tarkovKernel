@@ -630,7 +630,7 @@ void thread()
 	DebugMessage("PID: %i\n", tarkovPID);
 
 	UNICODE_STRING unityplayer;
-	RtlInitUnicodeString(&unityplayer, L"kernel32.dll");
+	RtlInitUnicodeString(&unityplayer, L"UnityPlayer.dll");
 
 	//LARGE_INTEGER Timeout;
 	//Timeout.QuadPart = RELATIVE(SECONDS(10));
@@ -651,8 +651,8 @@ void thread()
 
 	DebugMessage("%wZ base: %llx", unityplayer, unityplayer_base);
 
-	//DebugMessage("%llx", unityplayer_base);
 	uintptr_t pobj_manager = unityplayer_base + object_manager;
+	DebugMessage("objmanager = %p", pobj_manager);
 	struct settings G_SETTINGS = { 0 };
 	while (1) {
 		/* read settings */
