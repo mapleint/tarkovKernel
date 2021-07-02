@@ -345,7 +345,7 @@ unsigned char change_ts(ULONG timestamp)
 		DebugMessage("failed to find cache\n");
 		return 0;
 	}
-	DebugMessage("piddb: %p | %p", p_piddbcachetable, p_piddblock);
+	DebugMessage("piddb: %p | %p\n", p_piddbcachetable, p_piddblock);
 	//struct PiDDBCacheEntry x = { 0 };
 	//x.TimeDateStamp = timestamp;
 	//x.DriverName = dname;
@@ -353,12 +353,12 @@ unsigned char change_ts(ULONG timestamp)
 	ExAcquireResourceExclusiveLite(p_piddblock, TRUE);
 	struct PiDDBCacheEntry* first = (struct PiDDBCacheEntry*)((uintptr_t)p_piddbcachetable->BalancedRoot.RightChild + sizeof(RTL_BALANCED_LINKS)); // 0x20
 	for (struct PiDDBCacheEntry* entry = first; &(entry->List) != first->List.Blink; entry = (struct PiDDBCacheEntry*)entry->List.Flink) {
-		//DebugMessage("PIDDB");
+		DebugMessage("PIDDB : %wZ", entry->DriverName);
 		if (entry->TimeDateStamp == timestamp) {
 			RemoveEntryList(&entry->List);
 			RtlDeleteElementGenericTableAvl(p_piddbcachetable, entry);
 			ExReleaseResourceLite(p_piddblock);
-			DebugMessage("VULN TIMESTAMP CLEARED");
+			DebugMessage("VULN TIMESTAMP CLEARED\n");
 			return 0;
 		}
 	}
@@ -488,24 +488,6 @@ void memocpy(void* dest, void* src, size_t n)
 }
 
 
-PVOID um_mod_base_addr(PEPROCESS pProcess, PUNICODE_STRING name)
-{
-	PPEB pPeb = PsGetProcessPeb(pProcess);
-	if (!pPeb || !pPeb->Ldr) {
-		DebugMessage("PEB not found");
-		return NULL;
-	}
-	for (PLIST_ENTRY pListEntry = pPeb->Ldr->InLoadOrderModuleList.Flink;
-		pListEntry != &pPeb->Ldr->InLoadOrderModuleList;
-		pListEntry = pListEntry->Flink) {
-		PLDR_DATA_TABLE_ENTRY pEntry = CONTAINING_RECORD(pListEntry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-		DebugMessage("DLL ENUM: %wZ\n", pEntry->BaseDllName);
-		if (RtlCompareUnicodeString(&pEntry->BaseDllName, name, TRUE) == 0)
-			return pEntry->DllBase;
-	}
-	return 0;
-}
-
 char shouldexit = 0;
 
 NTSTATUS UnloadDriver(PDRIVER_OBJECT pDriverObject)
@@ -515,13 +497,21 @@ NTSTATUS UnloadDriver(PDRIVER_OBJECT pDriverObject)
 	return STATUS_SUCCESS;
 }
 
-PVOID BBGetUserModule(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
+PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 {
-
+	if (!pProcess || !ModuleName) {
+		DebugMessage("Process or module name was null\n");
+		return 0;
+	}
 	LARGE_INTEGER time = { 0 };
 	time.QuadPart = RELATIVE(MILLISECONDS(250));
-
+	BOOLEAN isWow64 = (PsGetProcessWow64Process(pProcess) != NULL) ? TRUE : FALSE;
+	if (isWow64) {
+		DebugMessage("PEB was wow64\n");
+		return 0;
+	}
 	ZPPEB pPeb = PsGetProcessPeb(pProcess);
+
 	if (!pPeb) {
 		DebugMessage("No PEB present\n");
 		return 0;
@@ -530,7 +520,7 @@ PVOID BBGetUserModule(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 	// Wait for loader a bit
 	for (INT i = 0; !pPeb->Ldr && i < 10; i++) {
 		DebugMessage("Loader not intialiezd, waiting %i\n", i);
-		KeDelayExecutionThread(KernelMode, TRUE, &time);
+		KeDelayExecutionThread(KernelMode, FALSE, &time);
 	}
 
 	// Still no loader
@@ -553,8 +543,8 @@ PVOID BBGetUserModule(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 
 void thread()
 {
-	DebugMessage("entering gamer region\n");
-	//KeEnterGuardedRegion();
+	DebugMessage("entering thread (guarded region)\n");
+	KeEnterGuardedRegion();
 //UNREFERENCED_PARAMETER(pDriverObject);
 /*driverunload doesn't exist*/
 	kernelbase();
@@ -573,14 +563,17 @@ void thread()
 	change_ts(VULNTIMESTAMP);
 	DebugMessage("looking for joe\n");
 	/* localize to destroy string from stack*/
-	{UNICODE_STRING str;
+	{
+	UNICODE_STRING str;
 	RtlInitUnicodeString(&str, L"joe.sys");
-	clearmmu(&str, TRUE); }
-	//KeLeaveGuardedRegion();
+	clearmmu(&str, TRUE); 
+	}
+
 	PEPROCESS np;
 	DWORD32 pid = 0;
 	if (FindProcessByName("syrup.exe", &np) == STATUS_NOT_FOUND) {
 		DebugMessage("couldn't find syrup\n");
+		KeLeaveGuardedRegion();
 		return;
 	}
 	else {
@@ -591,7 +584,6 @@ void thread()
 	ULONG64 base = *(uintptr_t*)basep;
 	char init[5] = "INIT";
 	void** buffers = (void*)(base + bufoffset /*syrup.exe -> buffer offset*/);
-	//  struct settings* g_settings = (struct settings*)(base + settingsoffset);
 
 	KAPC_STATE apc;
 	DebugMessage("basep %llx, base %p, &buffer[0] %llx\n", basep, (PVOID)base, base + 0x5650 /*location of buf pointers and 0x10 above is settings*/);
@@ -610,6 +602,7 @@ void thread()
 		else if (str_cmp(buffers[0], "EXIT", 5) == 0) {
 			KeUnstackDetachProcess(&apc);
 			DebugMessage("exiting [told to]\n");
+			KeLeaveGuardedRegion();
 			return;
 		}
 		else {
@@ -620,6 +613,7 @@ void thread()
 		}
 		if (shouldexit == 1) {
 			KeUnstackDetachProcess(&apc);
+			KeLeaveGuardedRegion();
 			return;
 		}
 		DebugMessage("tarkov not found\n");
@@ -635,7 +629,6 @@ void thread()
 	KeUnstackDetachProcess(&apc);
 	DebugMessage("PID: %i\n", tarkovPID);
 
-	PEPROCESS tarkovprocess;
 	UNICODE_STRING unityplayer;
 	RtlInitUnicodeString(&unityplayer, L"kernel32.dll");
 
@@ -643,25 +636,55 @@ void thread()
 	//Timeout.QuadPart = RELATIVE(SECONDS(10));
 	//KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
 
-	KeStackAttachProcess(np, &apc);
+	PEPROCESS tarkovprocess;
 	NTSTATUS status = PsLookupProcessByProcessId((HANDLE)tarkovPID, &tarkovprocess);
 
-	if (!NT_SUCCESS(status)) {
+	if (!NT_SUCCESS(status) || !tarkovprocess){
 		DebugMessage("pslookuppid failed!");
+		KeLeaveGuardedRegion();
 		return;
 	}
 
-	uintptr_t unityplayer_base = (uintptr_t)um_mod_base_addr(tarkovprocess, &unityplayer);
-
+	KeStackAttachProcess(tarkovprocess, &apc);
+	uintptr_t unityplayer_base = (uintptr_t)getummod(tarkovprocess, &unityplayer);
 	KeUnstackDetachProcess(&apc);
-	DebugMessage("%llx", unityplayer_base);
+
+	DebugMessage("%wZ base: %llx", unityplayer, unityplayer_base);
 
 	//DebugMessage("%llx", unityplayer_base);
-	//uintptr_t pobj_manager = unityplayer_base + object_manager;
-	//return;
-	//while (1) {
-	//
-	//}
+	uintptr_t pobj_manager = unityplayer_base + object_manager;
+	struct settings G_SETTINGS = { 0 };
+	while (1) {
+		/* read settings */
+		KeStackAttachProcess(np, &apc);
+
+		if (str_cmp(buffers[0], "EXIT", 5) == 0) {
+			KeUnstackDetachProcess(&apc);
+			KeLeaveGuardedRegion();
+			shouldexit = 1;
+			DebugMessage("exiting [told to]\n");
+			return;
+		}
+
+		KeUnstackDetachProcess(&apc);
+
+		/* read/write to tarkov */
+		KeStackAttachProcess(tarkovprocess, &apc);
+
+		G_SETTINGS = *(struct settings*)(base + settingsoffset);
+
+		KeUnstackDetachProcess(&apc);
+
+		/* write to buffer */
+		KeStackAttachProcess(np, &apc);
+
+		KeUnstackDetachProcess(&apc);
+
+		LARGE_INTEGER Timeout = { 0 };
+		Timeout.QuadPart = RELATIVE(MILLISECONDS(7));
+		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
+	}
+
 }
 
 // very much possible under a MM driver, but args are invalid
@@ -670,7 +693,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
 	DebugMessage("hi\n");
 	/* invalid parameters */
 	UNREFERENCED_PARAMETER(pDriverObject);
-	pDriverObject->DriverUnload = &UnloadDriver;
+//	pDriverObject->DriverUnload = &UnloadDriver;
 	UNREFERENCED_PARAMETER(pRegistryPath);
 	HANDLE handle;
 	NTSTATUS status = PsCreateSystemThread(&handle, THREAD_ALL_ACCESS, 0, 0, 0, (PKSTART_ROUTINE)thread, 0);

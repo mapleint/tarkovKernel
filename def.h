@@ -1,10 +1,6 @@
 #pragma once
 #include <ntifs.h>
 
-NTKERNELAPI
-PPEB
-NTAPI
-PsGetProcessPeb(IN PEPROCESS Process);
 
 typedef struct _RTL_PROCESS_MODULE_INFORMATION
 {
@@ -332,4 +328,14 @@ typedef struct _PEB
 	ULONG SystemReserved;
 	ULONG AtlThunkSListPtr32;
 	PVOID ApiSetMap;
-} PEB, * PPEB, *ZPPEB;
+} ZPEB, *ZPPEB;
+
+NTKERNELAPI
+PVOID
+NTAPI
+PsGetProcessWow64Process(IN PEPROCESS Process);
+
+NTKERNELAPI
+PPEB
+NTAPI
+PsGetProcessPeb(IN PEPROCESS Process);
