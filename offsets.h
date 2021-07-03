@@ -104,7 +104,12 @@
 #define lastActiveObject 0x0010
 #define activeObjects 0x0018
 
-#define nextObjectLink 0x0008
+typedef struct _BaseObject
+{
+    unsigned long long previousObjectLink; //0x0000
+    unsigned long long nextObjectLink; //0x0008
+    unsigned long long object; //0x0010
+}BaseObject;
 
 /*Movement Context*/
 #define off_angles_0 0x1F8

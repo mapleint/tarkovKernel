@@ -541,6 +541,46 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 	return 0;
 }
 
+/*!BSOD! make sure to be attached when doing this !BSOD!*/
+uintptr_t getobjectfromlist(void* list, void* lastobj, const char* obj_name)
+{
+	char name[256] = { 0 };
+
+	BaseObject* active = list;
+	BaseObject* last = lastobj;
+
+	if (!last || !active)
+		return 0;
+	if (active->object) {
+		while (active->object && active->object != lastobj) {
+			if (!str_cmp(active->object + 0x60, obj_name, 256))
+				return active->object;
+		active = active->nextObjectLink;
+		}
+	}
+	if (last->object) {
+		if (!str_cmp(active->object + 0x60, obj_name, 256))
+			return active->object;
+	}
+	return 0;
+}
+
+void norecoil(uintptr_t local) {
+	uintptr_t animation = (local + 0x190);
+	if (animation)
+	{
+		uintptr_t breath = *(uintptr_t*)(animation + 0x28);
+		*(float*)(breath + 0xA4) = 0.f;
+
+		uintptr_t* alignToZeroFloat22 = animation + 0x21c;
+		*alignToZeroFloat22 = 0.f;
+
+		uintptr_t* mask = animation + 0xF8;
+		*mask = 1.f;
+
+	}
+}
+
 void thread()
 {
 	DebugMessage("entering thread (guarded region)\n");
@@ -651,9 +691,23 @@ void thread()
 
 	DebugMessage("%wZ base: %llx", unityplayer, unityplayer_base);
 
-	uintptr_t pobj_manager = unityplayer_base + object_manager;
-	DebugMessage("objmanager = %p", pobj_manager);
+	uintptr_t obj_manager = unityplayer_base + object_manager;
+	DebugMessage("objmanager = %llx", obj_manager);
 	struct settings G_SETTINGS = { 0 };
+	uintptr_t* active_objects = NULL;
+	uintptr_t* tagged_objects = NULL;
+
+	uintptr_t fpscamera = NULL;
+	uintptr_t gameworld = NULL;
+	uintptr_t localgameworld = NULL;
+
+
+	{
+		LARGE_INTEGER Timeout = { 0 };
+		Timeout.QuadPart = RELATIVE(SECONDS(20));
+		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);	
+	}
+
 	while (1) {
 		/* read settings */
 		KeStackAttachProcess(np, &apc);
@@ -666,17 +720,60 @@ void thread()
 			return;
 		}
 
-		KeUnstackDetachProcess(&apc);
-
-		/* read/write to tarkov */
-		KeStackAttachProcess(tarkovprocess, &apc);
-
 		G_SETTINGS = *(struct settings*)(base + settingsoffset);
 
 		KeUnstackDetachProcess(&apc);
 
+		/* read/write to tarkov */
+
+		KeStackAttachProcess(tarkovprocess, &apc);
+		
+		/*initiate*/
+		if (!active_objects)
+			active_objects = activeObjects + obj_manager;
+		if (!active_objects[0] || !active_objects[1])
+			goto QUITREAD;
+		if (!fpscamera || !gameworld || !localgameworld) {
+			gameworld = getobjectfromlist(active_objects[1], active_objects[0], "Game World");
+			localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
+			tagged_objects = obj_manager + taggedObjects;
+			if (!tagged_objects[0] || !tagged_objects[1])
+				goto QUITREAD;
+			fpscamera = getobjectfromlist(tagged_objects[1], tagged_objects[0], "FPS Camera");
+
+		}
+		
+
+		/*general (frame by frame) reading*/
+		uintptr_t localplayer = 0;
+		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
+		if (!online)
+			goto QUITREAD;
+		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
+		int nplayers = *(int*)(online + 0x18);
+
+		if (nplayers <= 0 || !listbase)
+			goto QUITREAD;
+
+		uintptr_t players[128] = { 0 };
+		
+		memocpy(listbase + 0x20, &players, sizeof(uintptr_t) * nplayers);
+
+		for (size_t i = 0; i < nplayers; i++) {
+			if (*(int*)(nplayers + 0x18))
+				localplayer = players[i];
+		}
+
+		if (localplayer && G_SETTINGS.norecoil)
+			norecoil(localplayer);
+
+		QUITREAD:
+		KeUnstackDetachProcess(&apc);
+
 		/* write to buffer */
 		KeStackAttachProcess(np, &apc);
+
+
 
 		KeUnstackDetachProcess(&apc);
 
