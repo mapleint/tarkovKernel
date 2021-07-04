@@ -545,14 +545,13 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 /*!BSOD! make sure to be attached when doing this !BSOD!*/
 uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 {
-	//if (!list || !lastobj)
-	//	return 0;
+	DebugMessage("getting %s from list", obj_name);
+	if (!list || !lastobj)
+		return 0;
 	//char buf[256];
 	unk1* last = lastobj;
-	obj_name;
 	//
 	for (unk1* first = list; first != last; first = first->next) {
-		DebugMessage("%s", first->object->objectname);
 		//if (str_cmp(first->object->objectname, obj_name, 10) == 0)
 		//	return (uintptr_t)first->object;
 	}
@@ -620,7 +619,6 @@ void thread()
 	void** buffers = (void*)(base + bufoffset /*syrup.exe -> buffer offset*/);
 
 	KAPC_STATE apc;
-	DebugMessage("basep %llx, base %p, &buffer[0] %llx\n", basep, (PVOID)base, base + 0x5650 /*location of buf pointers and 0x10 above is settings*/);
 	KeStackAttachProcess(np, &apc);
 	DebugMessage("buf: %s\n", (char*)(buffers[0]));
 	memocpy(buffers[0], init, sizeof(init));
@@ -695,7 +693,7 @@ void thread()
 	DebugMessage("objmanager = %llx", obj_manager);
 	struct settings G_SETTINGS = { 0 };
 	uintptr_t* active_objects = NULL;
-//	uintptr_t* tagged_objects = NULL;
+	uintptr_t* tagged_objects = NULL;
 
 	uintptr_t fpscamera = 0;
 	uintptr_t gameworld = 0;
@@ -729,6 +727,10 @@ void thread()
 			DebugMessage("activeobjects were null");
 			goto QUITREAD;
 		}
+		if (!tagged_objects)
+			tagged_objects = (uintptr_t*)obj_manager;
+		if (!tagged_objects)
+			DebugMessage("taggedobjs were null");
 		if (!fpscamera || !gameworld || !localgameworld) {
 			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "Game World");
 	//		if (!gameworld) {
@@ -772,12 +774,12 @@ void thread()
 		QUITREAD:
 		KeUnstackDetachProcess(&apc);
 
-	//	DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\nobjmanager: %llx", 
-	//		active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base, obj_manager);
+		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\nobjmanager: %llx", 
+			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base, obj_manager);
 		/* write to buffer */
 		KeStackAttachProcess(np, &apc);
 
-
+		
 		KeUnstackDetachProcess(&apc);
 
 		LARGE_INTEGER Timeout = { 0 };
