@@ -2,6 +2,7 @@
 #include "offsets.h"
 #include <ntimage.h>
 #include "dbgmsg.h"
+#include <stdio.h>
 
 #define VULNTIMESTAMP 0x5284EAC3
 
@@ -542,25 +543,18 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 }
 
 /*!BSOD! make sure to be attached when doing this !BSOD!*/
-uintptr_t getobjectfromlist(void* list, void* lastobj, const char* obj_name)
+uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 {
-	char name[256] = { 0 };
-
-	BaseObject* active = list;
-	BaseObject* last = lastobj;
-
-	if (!last || !active)
-		return 0;
-	if (active->object) {
-		while (active->object && active->object != lastobj) {
-			if (!str_cmp(active->object + 0x60, obj_name, 256))
-				return active->object;
-		active = active->nextObjectLink;
-		}
-	}
-	if (last->object) {
-		if (!str_cmp(active->object + 0x60, obj_name, 256))
-			return active->object;
+	//if (!list || !lastobj)
+	//	return 0;
+	//char buf[256];
+	unk1* last = lastobj;
+	obj_name;
+	//
+	for (unk1* first = list; first != last; first = first->next) {
+		DebugMessage("%s", first->object->objectname);
+		//if (str_cmp(first->object->objectname, obj_name, 10) == 0)
+		//	return (uintptr_t)first->object;
 	}
 	return 0;
 }
@@ -570,13 +564,13 @@ void norecoil(uintptr_t local) {
 	if (animation)
 	{
 		uintptr_t breath = *(uintptr_t*)(animation + 0x28);
-		*(float*)(breath + 0xA4) = 0.f;
+		*(int*)(breath + 0xA4) = 0;
 
-		uintptr_t* alignToZeroFloat22 = animation + 0x21c;
-		*alignToZeroFloat22 = 0.f;
+		int* alignToZeroFloat22 = (int*)(animation + 0x21c);
+		*alignToZeroFloat22 = 0;
 
-		uintptr_t* mask = animation + 0xF8;
-		*mask = 1.f;
+		int* mask = (int*)(animation + 0xF8);
+		*mask = 0x3f800000;
 
 	}
 }
@@ -689,24 +683,24 @@ void thread()
 	uintptr_t unityplayer_base = (uintptr_t)getummod(tarkovprocess, &unityplayer);
 	KeUnstackDetachProcess(&apc);
 
+	{
+		LARGE_INTEGER Timeout = { 0 };
+		Timeout.QuadPart = RELATIVE(SECONDS(20));
+		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);	
+	}
+
 	DebugMessage("%wZ base: %llx", unityplayer, unityplayer_base);
 
 	uintptr_t obj_manager = unityplayer_base + object_manager;
 	DebugMessage("objmanager = %llx", obj_manager);
 	struct settings G_SETTINGS = { 0 };
 	uintptr_t* active_objects = NULL;
-	uintptr_t* tagged_objects = NULL;
+//	uintptr_t* tagged_objects = NULL;
 
-	uintptr_t fpscamera = NULL;
-	uintptr_t gameworld = NULL;
-	uintptr_t localgameworld = NULL;
+	uintptr_t fpscamera = 0;
+	uintptr_t gameworld = 0;
+	uintptr_t localgameworld = 0;
 
-
-	{
-		LARGE_INTEGER Timeout = { 0 };
-		Timeout.QuadPart = RELATIVE(SECONDS(20));
-		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);	
-	}
 
 	while (1) {
 		/* read settings */
@@ -730,49 +724,58 @@ void thread()
 		
 		/*initiate*/
 		if (!active_objects)
-			active_objects = activeObjects + obj_manager;
-		if (!active_objects[0] || !active_objects[1])
+			active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
+		if (!active_objects[0] || !active_objects[1]) {
+			DebugMessage("activeobjects were null");
 			goto QUITREAD;
+		}
 		if (!fpscamera || !gameworld || !localgameworld) {
-			gameworld = getobjectfromlist(active_objects[1], active_objects[0], "Game World");
-			localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
-			tagged_objects = obj_manager + taggedObjects;
-			if (!tagged_objects[0] || !tagged_objects[1])
-				goto QUITREAD;
-			fpscamera = getobjectfromlist(tagged_objects[1], tagged_objects[0], "FPS Camera");
-
+			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "Game World");
+	//		if (!gameworld) {
+	//			DebugMessage("gameworld was null");
+	//			goto QUITREAD;
+	//		}
+	//		localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
+	//		tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
+	//		if (!tagged_objects[0] || !tagged_objects[1]) {
+	//			DebugMessage("tagged object(s) was null");
+	//			goto QUITREAD;
+	//		}
+	//		fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
+	//	
 		}
 		
 
-		/*general (frame by frame) reading*/
-		uintptr_t localplayer = 0;
-		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
-		if (!online)
-			goto QUITREAD;
-		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
-		int nplayers = *(int*)(online + 0x18);
-
-		if (nplayers <= 0 || !listbase)
-			goto QUITREAD;
-
-		uintptr_t players[128] = { 0 };
-		
-		memocpy(listbase + 0x20, &players, sizeof(uintptr_t) * nplayers);
-
-		for (size_t i = 0; i < nplayers; i++) {
-			if (*(int*)(nplayers + 0x18))
-				localplayer = players[i];
-		}
-
-		if (localplayer && G_SETTINGS.norecoil)
-			norecoil(localplayer);
+//		/*general (frame by frame) reading*/
+//		uintptr_t localplayer = 0;
+//		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
+//		if (!online)
+//			goto QUITREAD;
+//		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
+//		int nplayers = *(int*)(online + 0x18);
+//
+//		if (nplayers <= 0 || !listbase)
+//			goto QUITREAD;
+//
+//		uintptr_t players[128] = { 0 };
+//		
+//		memocpy((void*)(listbase + 0x20), &players, nplayers * sizeof(uintptr_t));
+//
+//		for (size_t i = 0; i < nplayers; i++) {
+//			if (*(int*)(nplayers + 0x18))
+//				localplayer = players[i];
+//		}
+//
+//		if (localplayer && G_SETTINGS.norecoil)
+//			norecoil(localplayer);
 
 		QUITREAD:
 		KeUnstackDetachProcess(&apc);
 
+	//	DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\nobjmanager: %llx", 
+	//		active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base, obj_manager);
 		/* write to buffer */
 		KeStackAttachProcess(np, &apc);
-
 
 
 		KeUnstackDetachProcess(&apc);

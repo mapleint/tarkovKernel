@@ -330,6 +330,26 @@ typedef struct _PEB
 	PVOID ApiSetMap;
 } ZPEB, *ZPPEB;
 
+typedef struct _mono_object
+{
+	char pad_0000[48]; //0x0000
+	void* pObjectClass; //0x0030
+	char pad_0038[16]; //0x0038
+	unsigned short Unk; //0x0048
+	unsigned Layer; //0x0050
+	unsigned short Tag; //0x0054
+	char pad_0056[10]; //0x0056
+	char* objectname; //0x0060
+
+}mono_object;
+
+typedef struct _unk1
+{
+	char pad_0[0x8];
+	struct _unk1* next;
+	mono_object* object;
+}unk1;
+
 NTKERNELAPI
 PVOID
 NTAPI
