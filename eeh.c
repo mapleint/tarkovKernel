@@ -550,10 +550,23 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 		return 0;
 	//char buf[256];
 	unk1* last = lastobj;
-	//
-	for (unk1* first = list; first != last; first = first->next) {
-		//if (str_cmp(first->object->objectname, obj_name, 10) == 0)
+	char* ret = 0;
+	int i = 0;
+	for (unk1* first = list; first->object && first->object != last->object; first = first->next) {
+		ret = first->object->objectname;
+		//if (str_cmp(first->object->objectname, obj_name, 11) == 0) {
+	//		DebugMessage("found %s : %inth index", first->object->objectname, i);
 		//	return (uintptr_t)first->object;
+		//}
+			
+
+		i++;
+	} 
+	if (last) {
+		ret = last->object->objectname;
+	//	if (str_cmp(last->object->objectname, obj_name, 11) == 0) {
+	//		return (uintptr_t)last->object;
+	//	}
 	}
 	return 0;
 }
@@ -629,9 +642,9 @@ void thread()
 	while (1) {
 		KeStackAttachProcess(np, &apc);
 		DebugMessage("buffer is unchanged %s\n", (char*)buffers[0]);
-		if (str_cmp(buffers[0], "INIT", 5) == 0) {
+		if (*(DWORD32*)buffers[0] ==  'TINI') {
 		}
-		else if (str_cmp(buffers[0], "EXIT", 5) == 0) {
+		else if (*(DWORD32*)buffers[0] == 'TIXE') {
 			KeUnstackDetachProcess(&apc);
 			DebugMessage("exiting [told to]\n");
 			KeLeaveGuardedRegion();
@@ -677,20 +690,22 @@ void thread()
 		return;
 	}
 
-	KeStackAttachProcess(tarkovprocess, &apc);
-	uintptr_t unityplayer_base = (uintptr_t)getummod(tarkovprocess, &unityplayer);
-	KeUnstackDetachProcess(&apc);
-
 	{
 		LARGE_INTEGER Timeout = { 0 };
 		Timeout.QuadPart = RELATIVE(SECONDS(20));
 		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);	
 	}
 
+	KeStackAttachProcess(tarkovprocess, &apc);
+	uintptr_t unityplayer_base = (uintptr_t)getummod(tarkovprocess, &unityplayer);
 	DebugMessage("%wZ base: %llx", unityplayer, unityplayer_base);
 
-	uintptr_t obj_manager = unityplayer_base + object_manager;
+	ULONG64 obj_manager = unityplayer_base + object_manager;
 	DebugMessage("objmanager = %llx", obj_manager);
+	obj_manager = *(uintptr_t*)obj_manager;
+	KeUnstackDetachProcess(&apc);
+
+
 	struct settings G_SETTINGS = { 0 };
 	uintptr_t* active_objects = NULL;
 	uintptr_t* tagged_objects = NULL;
@@ -720,6 +735,9 @@ void thread()
 
 		KeStackAttachProcess(tarkovprocess, &apc);
 		
+		if (!tagged_objects)
+			tagged_objects = (uintptr_t*)obj_manager;
+
 		/*initiate*/
 		if (!active_objects)
 			active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
@@ -727,16 +745,12 @@ void thread()
 			DebugMessage("activeobjects were null");
 			goto QUITREAD;
 		}
-		if (!tagged_objects)
-			tagged_objects = (uintptr_t*)obj_manager;
-		if (!tagged_objects)
-			DebugMessage("taggedobjs were null");
-		if (!fpscamera || !gameworld || !localgameworld) {
+		if (!fpscamera || !gameworld || !localgameworld) // {
 			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "Game World");
-	//		if (!gameworld) {
-	//			DebugMessage("gameworld was null");
-	//			goto QUITREAD;
-	//		}
+			if (!gameworld) {
+				DebugMessage("gameworld wasn't found");
+				goto QUITREAD;
+			}
 	//		localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
 	//		tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
 	//		if (!tagged_objects[0] || !tagged_objects[1]) {
@@ -745,7 +759,7 @@ void thread()
 	//		}
 	//		fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
 	//	
-		}
+	//	}
 		
 
 //		/*general (frame by frame) reading*/
@@ -771,16 +785,16 @@ void thread()
 //		if (localplayer && G_SETTINGS.norecoil)
 //			norecoil(localplayer);
 
-		QUITREAD:
+	QUITREAD:
+		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\n", 
+			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base );
 		KeUnstackDetachProcess(&apc);
 
-		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\nobjmanager: %llx", 
-			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base, obj_manager);
-		/* write to buffer */
-		KeStackAttachProcess(np, &apc);
-
-		
-		KeUnstackDetachProcess(&apc);
+	//	/* write to buffer */
+	//	KeStackAttachProcess(np, &apc);
+	//
+	//	
+	//	KeUnstackDetachProcess(&apc);
 
 		LARGE_INTEGER Timeout = { 0 };
 		Timeout.QuadPart = RELATIVE(MILLISECONDS(7));
