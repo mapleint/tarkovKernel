@@ -545,15 +545,15 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 /*!BSOD! make sure to be attached when doing this !BSOD!*/
 uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 {
-	DebugMessage("getting %s from list", obj_name);
 	if (!list || !lastobj)
 		return 0;
 	//char buf[256];
 	unk1* last = lastobj;
-	char* ret = 0;
+	unk1* first = list;
+	//mono_object* ret = 0;
 	int i = 0;
-	for (unk1* first = list; first->object && first->object != last->object; first = first->next) {
-		ret = first->object->objectname;
+	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
+	//	ret = first->object;
 		//if (str_cmp(first->object->objectname, obj_name, 11) == 0) {
 	//		DebugMessage("found %s : %inth index", first->object->objectname, i);
 		//	return (uintptr_t)first->object;
@@ -563,11 +563,13 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 		i++;
 	} 
 	if (last) {
-		ret = last->object->objectname;
+		i++;
+	//	ret = last->object;
 	//	if (str_cmp(last->object->objectname, obj_name, 11) == 0) {
 	//		return (uintptr_t)last->object;
 	//	}
 	}
+	DebugMessage("%s, had %i", obj_name, i);
 	return 0;
 }
 
