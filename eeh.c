@@ -547,27 +547,23 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 {
 	if (!list || !lastobj)
 		return 0;
-	//char buf[256];
 	unk1* last = lastobj;
 	unk1* first = list;
-	//mono_object* ret = 0;
+	size_t len = strlen(obj_name);
 	int i = 0;
 	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
-	//	ret = first->object;
-		//if (str_cmp(first->object->objectname, obj_name, 11) == 0) {
-	//		DebugMessage("found %s : %inth index", first->object->objectname, i);
-		//	return (uintptr_t)first->object;
-		//}
-			
-
+		DebugMessage("%p : %s\n", cur, cur->object->objectname);
+		if (str_cmp(cur->object->objectname, obj_name, len) == 0) {
+			DebugMessage("found %s : %inth index", cur->object->objectname, i);
+			return (uintptr_t)cur->object;
+		}
 		i++;
 	} 
 	if (last) {
-		i++;
-	//	ret = last->object;
-	//	if (str_cmp(last->object->objectname, obj_name, 11) == 0) {
-	//		return (uintptr_t)last->object;
-	//	}
+		DebugMessage("%s", last->object->objectname);
+		if (str_cmp(last->object->objectname, obj_name, len) == 0) {
+			return (uintptr_t)last->object;
+		}
 	}
 	DebugMessage("%s, had %i", obj_name, i);
 	return 0;
@@ -739,7 +735,8 @@ void thread()
 		
 		if (!tagged_objects)
 			tagged_objects = (uintptr_t*)obj_manager;
-
+		if (!tagged_objects)
+			goto QUITREAD;
 		/*initiate*/
 		if (!active_objects)
 			active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
@@ -747,19 +744,21 @@ void thread()
 			DebugMessage("activeobjects were null");
 			goto QUITREAD;
 		}
-		if (!fpscamera || !gameworld || !localgameworld) // {
-			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "Game World");
-			if (!gameworld) {
-				DebugMessage("gameworld wasn't found");
-				goto QUITREAD;
-			}
+	//	fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
+		//if (!fpscamera)
+		//	goto QUITREAD;
+		if (/*!fpscamera || */!gameworld /* || !localgameworld*/) // {
+			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
+			//if (!gameworld) {
+			//	DebugMessage("gameworld wasn't found");
+			//	goto QUITREAD;
+			//}
 	//		localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
 	//		tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
 	//		if (!tagged_objects[0] || !tagged_objects[1]) {
 	//			DebugMessage("tagged object(s) was null");
 	//			goto QUITREAD;
 	//		}
-	//		fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
 	//	
 	//	}
 		
@@ -792,14 +791,17 @@ void thread()
 			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base );
 		KeUnstackDetachProcess(&apc);
 
+
 	//	/* write to buffer */
 	//	KeStackAttachProcess(np, &apc);
 	//
 	//	
 	//	KeUnstackDetachProcess(&apc);
 
-		LARGE_INTEGER Timeout = { 0 };
-		Timeout.QuadPart = RELATIVE(MILLISECONDS(7));
+		LARGE_INTEGER Timeout = { 0 }; 
+		Timeout.QuadPart = RELATIVE(SECONDS(2));
+		if (fpscamera != 0)
+			Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
 		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
 	}
 
