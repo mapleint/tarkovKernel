@@ -473,7 +473,8 @@ unsigned char clearmmu(PUNICODE_STRING name, BOOLEAN r)
 /*if a string terminates early, this will be 0 if they matched until then*/
 int str_cmp(char* s1, char* s2, size_t n)
 {
-	for (int i = 0; i < n && s1[i] && s2[i]; i++) {
+	int i;
+	for (i = 0; i < n && s1[i] && s2[i]; i++) {
 		if (s1[i] != s2[i])
 			return 1;
 	}
@@ -551,33 +552,54 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 	unk1* last = lastobj;
 	unk1* first = list;
 	size_t len = strlen(obj_name);
-	int i = 0;
 	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
-		DebugMessage("%p : %s\n", cur, cur->object->objectname);
-		if (str_cmp(cur->object->objectname, obj_name, len) == 0) {
-			DebugMessage("found %s : %inth index", cur->object->objectname, i);
+		if (str_cmp(cur->object->objectname, obj_name, len) == 0)
 			return (uintptr_t)cur->object;
-		}
-		i++;
 	} 
 	if (last) {
-		DebugMessage("%s", last->object->objectname);
-		if (str_cmp(last->object->objectname, obj_name, len) == 0) {
+		if (str_cmp(last->object->objectname, obj_name, len) == 0)
 			return (uintptr_t)last->object;
-		}
 	}
-	DebugMessage("%s, had %i", obj_name, i);
 	return 0;
 }
 
 void norecoil(uintptr_t local) {
 	uintptr_t animation = *(uintptr_t*)(local + 0x190);
 	if (animation) {
+		DebugMessage("doing norecoil");
 		/*norecoil*/
 		uintptr_t shootingg = *(uintptr_t*)(animation + 0x48);
 		*(unsigned long long*)(shootingg + 0x38) = 0;
 		*(unsigned int*)(animation + 0x100) = 0x3f80'0000U;
 	}
+}
+
+void speed(uintptr_t dllbase, unsigned char on)
+{
+
+	DebugMessage("changing speed %i ", on);
+	uintptr_t addr = *(uintptr_t*)(dllbase + 0x156C440 + 7 * 8);
+	*(unsigned*)(addr + 0xfc) = on ? 0x3fcc'cccd : 0x3f80'0000;
+
+}
+
+void staminup(uintptr_t localplayer) 
+{
+	uintptr_t phys = *(uintptr_t*)(localplayer + 0x468);
+	uintptr_t stamina = *(uintptr_t*)(phys + 0x28);
+	*(unsigned*)(stamina + 0x48) = 0x447a0000;
+	stamina = *(uintptr_t*)(phys + 0x30);
+	*(unsigned*)(stamina + 0x48) = 0x447a0000;
+	stamina = *(uintptr_t*)(phys + 0x38);
+	*(unsigned*)(stamina + 0x48) = 0x447a0000;
+}
+
+void speedcola(uintptr_t localplayer)
+{
+	uintptr_t profile = *(uintptr_t*)(localplayer + 0x458);
+	uintptr_t skills = *(uintptr_t*)(profile + 0x60);
+	uintptr_t botreloadspeed = *(uintptr_t*)(skills + 0x708);
+	*(int*)(botreloadspeed + 0x28) = 0x4000'0000;
 }
 
 void thread()
@@ -665,7 +687,6 @@ void thread()
 	KeStackAttachProcess(np, &apc);
 	tarkovPID = *(DWORD32*)(buffers[0]);
 	KeUnstackDetachProcess(&apc);
-	DebugMessage("PID: %i\n", tarkovPID);
 
 	UNICODE_STRING unityplayer;
 	RtlInitUnicodeString(&unityplayer, L"UnityPlayer.dll");
@@ -712,7 +733,7 @@ void thread()
 		/* read settings */
 		KeStackAttachProcess(np, &apc);
 
-		if (*(int*)buffers[0] == 'TIXE' ) {
+		if (*(DWORD32*)buffers[0] == 'TIXE') {
 			KeUnstackDetachProcess(&apc);
 			KeLeaveGuardedRegion();
 			shouldexit = 1;
@@ -757,8 +778,8 @@ void thread()
 	//			DebugMessage("tagged object(s) was null");
 	//			goto QUITREAD;
 	//		}
-		Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
 	//	
+			Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
 		} else {
 			goto QUITREAD;
 		}
@@ -784,7 +805,13 @@ void thread()
 //
 		if (localplayer && G_SETTINGS.norecoil)
 			norecoil(localplayer);
-
+		if (localplayer && G_SETTINGS.sleightofhand)
+			speedcola(localplayer);
+		if (unityplayer_base) {
+			speed(unityplayer_base, G_SETTINGS.speed);
+			if (localplayer)
+				staminup(localplayer);
+		}
 	QUITREAD:
 		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\n", 
 			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base );
