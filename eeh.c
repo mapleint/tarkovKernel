@@ -28,10 +28,11 @@ struct settings
 	unsigned char esp;
 
 	unsigned char norecoil;
-	unsigned char nosway;
 
-	float speed;
+	unsigned char speed;
 	unsigned char level;
+
+	unsigned char sleightofhand;
 };
 
 typedef enum rendertypes {
@@ -570,18 +571,12 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 }
 
 void norecoil(uintptr_t local) {
-	uintptr_t animation = (local + 0x190);
-	if (animation)
-	{
-		uintptr_t breath = *(uintptr_t*)(animation + 0x28);
-		*(int*)(breath + 0xA4) = 0;
-
-		int* alignToZeroFloat22 = (int*)(animation + 0x21c);
-		*alignToZeroFloat22 = 0;
-
-		int* mask = (int*)(animation + 0xF8);
-		*mask = 0x3f800000;
-
+	uintptr_t animation = *(uintptr_t*)(local + 0x190);
+	if (animation) {
+		/*norecoil*/
+		uintptr_t shootingg = *(uintptr_t*)(animation + 0x48);
+		*(unsigned long long*)(shootingg + 0x38) = 0;
+		*(unsigned int*)(animation + 0x100) = 0x3f80'0000U;
 	}
 }
 
@@ -717,7 +712,7 @@ void thread()
 		/* read settings */
 		KeStackAttachProcess(np, &apc);
 
-		if (str_cmp(buffers[0], "EXIT", 5) == 0) {
+		if (*(int*)buffers[0] == 'TIXE' ) {
 			KeUnstackDetachProcess(&apc);
 			KeLeaveGuardedRegion();
 			shouldexit = 1;
@@ -730,6 +725,9 @@ void thread()
 		KeUnstackDetachProcess(&apc);
 
 		/* read/write to tarkov */
+
+		LARGE_INTEGER Timeout = { 0 }; 
+		Timeout.QuadPart = RELATIVE(SECONDS(2));
 
 		KeStackAttachProcess(tarkovprocess, &apc);
 		
@@ -747,44 +745,45 @@ void thread()
 	//	fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
 		//if (!fpscamera)
 		//	goto QUITREAD;
-		if (/*!fpscamera || */!gameworld /* || !localgameworld*/) // {
-			gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
+		gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
+		if (/*!fpscamera || */ gameworld /* || !localgameworld*/)  {
 			//if (!gameworld) {
 			//	DebugMessage("gameworld wasn't found");
 			//	goto QUITREAD;
 			//}
-	//		localgameworld = (*(*(*(uintptr_t***)(gameworld + 0x30)) + 0x18) + 0x28);
-	//		tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
-	//		if (!tagged_objects[0] || !tagged_objects[1]) {
+			localgameworld = *(*(*((uintptr_t***)(gameworld + 0x30)) + 3) + 5);
+		//	tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
+		//	if (!tagged_objects[0] || !tagged_objects[1]) {
 	//			DebugMessage("tagged object(s) was null");
 	//			goto QUITREAD;
 	//		}
+		Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
 	//	
-	//	}
+		} else {
+			goto QUITREAD;
+		}
 		
 
 //		/*general (frame by frame) reading*/
-//		uintptr_t localplayer = 0;
-//		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
-//		if (!online)
-//			goto QUITREAD;
-//		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
-//		int nplayers = *(int*)(online + 0x18);
+		uintptr_t localplayer = 0;
+		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
+		if (!online)
+			goto QUITREAD;
+		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
+		int nplayers = *(int*)(online + 0x18);
 //
-//		if (nplayers <= 0 || !listbase)
-//			goto QUITREAD;
+		if (nplayers <= 0 || !listbase)
+			goto QUITREAD;
 //
-//		uintptr_t players[128] = { 0 };
-//		
-//		memocpy((void*)(listbase + 0x20), &players, nplayers * sizeof(uintptr_t));
+		uintptr_t* players = (uintptr_t*)(listbase + 0x20);
 //
-//		for (size_t i = 0; i < nplayers; i++) {
-//			if (*(int*)(nplayers + 0x18))
-//				localplayer = players[i];
-//		}
+		for (size_t i = 0; i < nplayers; i++) {
+			if (*(int*)(players[i] + 0x18))
+				localplayer = players[i];
+		}
 //
-//		if (localplayer && G_SETTINGS.norecoil)
-//			norecoil(localplayer);
+		if (localplayer && G_SETTINGS.norecoil)
+			norecoil(localplayer);
 
 	QUITREAD:
 		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\n", 
@@ -798,10 +797,6 @@ void thread()
 	//	
 	//	KeUnstackDetachProcess(&apc);
 
-		LARGE_INTEGER Timeout = { 0 }; 
-		Timeout.QuadPart = RELATIVE(SECONDS(2));
-		if (fpscamera != 0)
-			Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
 		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
 	}
 
