@@ -571,6 +571,7 @@ void norecoil(uintptr_t local) {
 		uintptr_t shootingg = *(uintptr_t*)(animation + 0x48);
 		*(unsigned long long*)(shootingg + 0x38) = 0;
 		*(unsigned int*)(animation + 0x100) = 0x3f80'0000U;
+		*(unsigned int*)(animation + 0x198) = 0x428a0000U;
 	}
 }
 
@@ -586,25 +587,38 @@ void speed(uintptr_t dllbase, unsigned char on)
 void staminup(uintptr_t localplayer) 
 {
 	uintptr_t phys = *(uintptr_t*)(localplayer + 0x468);
+	if (!phys)
+		return;
 	uintptr_t stamina = *(uintptr_t*)(phys + 0x28);
+	if (!stamina)
+		return;
 	*(unsigned*)(stamina + 0x48) = 0x447a0000;
 	stamina = *(uintptr_t*)(phys + 0x30);
+	if (!stamina)
+		return;
 	*(unsigned*)(stamina + 0x48) = 0x447a0000;
 	stamina = *(uintptr_t*)(phys + 0x38);
+	if (!stamina)
+		return;
 	*(unsigned*)(stamina + 0x48) = 0x447a0000;
 }
 
 void speedcola(uintptr_t localplayer)
 {
 	uintptr_t profile = *(uintptr_t*)(localplayer + 0x458);
+	if (!profile)
+		return;
 	uintptr_t skills = *(uintptr_t*)(profile + 0x60);
+	if (!skills)
+		return;
 	uintptr_t botreloadspeed = *(uintptr_t*)(skills + 0x708);
+	if (botreloadspeed)
 	*(int*)(botreloadspeed + 0x28) = 0x4000'0000;
 }
 
 void thread()
 {
-	DebugMessage("entering thread (guarded region)\n");
+	DebugMessage("entering guarded region\n");
 	KeEnterGuardedRegion();
 //UNREFERENCED_PARAMETER(pDriverObject);
 /*driverunload doesn't exist*/
@@ -779,7 +793,7 @@ void thread()
 	//			goto QUITREAD;
 	//		}
 	//	
-			Timeout.QuadPart = RELATIVE(MILLISECONDS(16));
+			//Timeout.QuadPart = RELATIVE(MILLISECONDS(d));
 		} else {
 			goto QUITREAD;
 		}
@@ -809,7 +823,7 @@ void thread()
 			speedcola(localplayer);
 		if (unityplayer_base) {
 			speed(unityplayer_base, G_SETTINGS.speed);
-			if (localplayer)
+			if (localplayer && G_SETTINGS.speed)
 				staminup(localplayer);
 		}
 	QUITREAD:
