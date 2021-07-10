@@ -291,7 +291,7 @@ UINT64 FindPatternImage(VOID* base, const char* pattern)
 		}
 	}
 
-	return match;
+	return match;	
 }
 */
 
@@ -553,10 +553,14 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 	unk1* first = list;
 	size_t len = strlen(obj_name);
 	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
+		if (!cur || !cur->object || !cur->object->objectname)
+			break;
 		if (str_cmp(cur->object->objectname, obj_name, len) == 0)
 			return (uintptr_t)cur->object;
 	} 
 	if (last) {
+		if (!last || !last->object || !last->object->objectname)
+			return 0;
 		if (str_cmp(last->object->objectname, obj_name, len) == 0)
 			return (uintptr_t)last->object;
 	}
@@ -738,7 +742,7 @@ void thread()
 	uintptr_t* active_objects = NULL;
 	uintptr_t* tagged_objects = NULL;
 
-	uintptr_t fpscamera = 0;
+	//uintptr_t fpscamera = 0;
 	uintptr_t gameworld = 0;
 	uintptr_t localgameworld = 0;
 
@@ -782,10 +786,7 @@ void thread()
 		//	goto QUITREAD;
 		gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
 		if (/*!fpscamera || */ gameworld /* || !localgameworld*/)  {
-			//if (!gameworld) {
-			//	DebugMessage("gameworld wasn't found");
-			//	goto QUITREAD;
-			//}
+			
 			localgameworld = *(*(*((uintptr_t***)(gameworld + 0x30)) + 3) + 5);
 		//	tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
 		//	if (!tagged_objects[0] || !tagged_objects[1]) {
@@ -801,6 +802,9 @@ void thread()
 
 //		/*general (frame by frame) reading*/
 		uintptr_t localplayer = 0;
+
+		if (!localgameworld)
+			goto QUITREAD;
 		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
 		if (!online)
 			goto QUITREAD;
@@ -811,24 +815,29 @@ void thread()
 			goto QUITREAD;
 //
 		uintptr_t* players = (uintptr_t*)(listbase + 0x20);
-//
+
+		if (!players)
+			goto QUITREAD;
+
+		/* loop through all! */
 		for (size_t i = 0; i < nplayers; i++) {
 			if (*(int*)(players[i] + 0x18))
 				localplayer = players[i];
 		}
-//
-		if (localplayer && G_SETTINGS.norecoil)
+
+		if (!localplayer)
+			goto QUITREAD;
+		if (G_SETTINGS.norecoil)
 			norecoil(localplayer);
-		if (localplayer && G_SETTINGS.sleightofhand)
+		if (G_SETTINGS.sleightofhand)
 			speedcola(localplayer);
+		if (G_SETTINGS.speed)
+			staminup(localplayer);
 		if (unityplayer_base) {
 			speed(unityplayer_base, G_SETTINGS.speed);
-			if (localplayer && G_SETTINGS.speed)
-				staminup(localplayer);
 		}
+
 	QUITREAD:
-		DebugMessage("active: %p\ntagged: %p\nlocalgameworld: %llx\ngameworld: %llx\nCamera: %llx\ndllbase: %llx\n", 
-			active_objects, tagged_objects, localgameworld, gameworld, fpscamera, unityplayer_base );
 		KeUnstackDetachProcess(&apc);
 
 
