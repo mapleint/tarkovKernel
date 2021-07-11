@@ -544,6 +544,15 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 	return 0;
 }
 
+
+unsigned char isvalidpointer(void* ptr) 
+{
+	if (ptr >= (void*)0x1000U /*first page*/ && ptr <= (void*)0x7fff'ffff'ffff'ffffU /*usermode limi*/)
+		return 1;
+	else
+		return 0;
+}
+
 /*!BSOD! make sure to be attached when doing this !BSOD!*/
 uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 {
@@ -553,19 +562,18 @@ uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
 	unk1* first = list;
 	size_t len = strlen(obj_name);
 	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
-		if (!cur || !cur->object || !cur->object->objectname)
+		if (!isvalidpointer(cur) || !isvalidpointer(cur->object) || !isvalidpointer((char*)cur->object + 0x60))
 			break;
 		if (str_cmp(cur->object->objectname, obj_name, len) == 0)
 			return (uintptr_t)cur->object;
 	} 
-	if (last) {
-		if (!last || !last->object || !last->object->objectname)
-			return 0;
-		if (str_cmp(last->object->objectname, obj_name, len) == 0)
-			return (uintptr_t)last->object;
-	}
+	if (!isvalidpointer(last) || !isvalidpointer(last->object)|| !isvalidpointer((char*)last->object + 0x60))
+		return 0;
+	if (str_cmp(last->object->objectname, obj_name, len) == 0)
+		return (uintptr_t)last->object;
 	return 0;
 }
+
 
 void norecoil(uintptr_t local) {
 	uintptr_t animation = *(uintptr_t*)(local + 0x190);
