@@ -680,7 +680,6 @@ void thread()
 	DWORD32 pid = 0;
 	if (FindProcessByName("syrup.exe", &np) == STATUS_NOT_FOUND) {
 		DebugMessage("couldn't find syrup\n");
-		KeLeaveGuardedRegion();
 		return;
 	}
 	else {
@@ -708,7 +707,6 @@ void thread()
 		else if (*(DWORD32*)buffers[0] == 'TIXE') {
 			KeUnstackDetachProcess(&apc);
 			DebugMessage("exiting [told to]\n");
-			KeLeaveGuardedRegion();
 			return;
 		}
 		else {
@@ -719,7 +717,6 @@ void thread()
 		}
 		if (shouldexit == 1) {
 			KeUnstackDetachProcess(&apc);
-			KeLeaveGuardedRegion();
 			return;
 		}
 		DebugMessage("tarkov not found\n");
@@ -746,7 +743,6 @@ void thread()
 
 	if (!NT_SUCCESS(status) || !tarkovprocess){
 		DebugMessage("pslookuppid failed!");
-		KeLeaveGuardedRegion();
 		return;
 	}
 
@@ -781,7 +777,6 @@ void thread()
 
 		if (*(DWORD32*)buffers[0] == 'TIXE') {
 			KeUnstackDetachProcess(&apc);
-			KeLeaveGuardedRegion();
 			shouldexit = 1;
 			DebugMessage("exiting [told to]\n");
 			return;
