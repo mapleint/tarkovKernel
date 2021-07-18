@@ -595,60 +595,6 @@ uintptr_t getobjfromtag(void* list, void* lastobj)
 	return 0;
 }
 
-void norecoil(uintptr_t local) {
-	uintptr_t animation = *(uintptr_t*)(local + 0x190);
-	if (animation) {
-		DebugMessage("doing norecoil");
-		/*norecoil*/
-		uintptr_t shootingg = *(uintptr_t*)(animation + 0x48);
-		*(unsigned long long*)(shootingg + 0x38) = 0;
-		*(unsigned int*)(animation + 0x100) = 0x3f80'0000U;
-		*(unsigned int*)(animation + 0x198) = 0x428a0000U;
-	}
-}
-
-void speed(uintptr_t dllbase, unsigned char on)
-{
-
-	DebugMessage("changing speed %i ", on);
-	uintptr_t addr = *(uintptr_t*)(dllbase + 0x156C440 + 7 * 8);
-	*(unsigned*)(addr + 0xfc) = on ? 0x3fcc'cccd : 0x3f80'0000;
-
-}
-
-void staminup(uintptr_t localplayer) 
-{
-	uintptr_t phys = *(uintptr_t*)(localplayer + 0x468);
-	if (!phys)
-		return;
-	uintptr_t stamina = *(uintptr_t*)(phys + 0x28);
-	if (!stamina)
-		return;
-	*(unsigned*)(stamina + 0x48) = 0x447a0000;
-	stamina = *(uintptr_t*)(phys + 0x30);
-	if (!stamina)
-		return;
-	*(unsigned*)(stamina + 0x48) = 0x447a0000;
-	stamina = *(uintptr_t*)(phys + 0x38);
-	if (!stamina)
-		return;
-	*(unsigned*)(stamina + 0x48) = 0x447a0000;
-}
-
-void speedcola(uintptr_t localplayer)
-{
-	uintptr_t profile = *(uintptr_t*)(localplayer + 0x458);
-	if (!profile)
-		return;
-	uintptr_t skills = *(uintptr_t*)(profile + 0x60);
-	if (!skills)
-		return;
-	uintptr_t botreloadspeed = *(uintptr_t*)(skills + 0x708);
-	if (botreloadspeed)
-	*(int*)(botreloadspeed + 0x28) = 0x4000'0000;
-}
-
-
 enum rqn {
 	READ = 1,
 	WRITE,
@@ -668,27 +614,24 @@ void thread()
 {
 	DebugMessage("entering guarded region\n");
 	KeEnterGuardedRegion();
-//UNREFERENCED_PARAMETER(pDriverObject);
-/*driverunload doesn't exist*/
+
 	kernelbase();
 	if (KERNEL > 0)
 		DebugMessage("[+] found kernel\n");
 	else
 		DebugMessage("[-] didn't find kernel\n");
-	/*LOL FOUND OUT THAT WAS UNNEEDED*/
-	//UNICODE_STRING b;
-	//RtlInitUnicodeString(&b, L"deeznuts.sys");
-	//clear mmu is less effective than just changing ts and name
-	findmmu();
+
 
 	faildiskdispatch();
 
 	change_ts(VULNTIMESTAMP);
 	DebugMessage("looking for joe\n");
+
 	/* localize to destroy string from stack*/
 	{
 	UNICODE_STRING str;
 	RtlInitUnicodeString(&str, L"joe.sys");
+	findmmu();
 	clearmmu(&str, TRUE); 
 	}
 
@@ -805,93 +748,10 @@ void thread()
 			break;
 		case GETMODBASE:
 			rq->param3 = unityplayer_base;
-				// dirty solution rn
+				// dirty solution - I know I won't be finding any other dll bases
 			rq->rn = FUFILLED;
 			break;
 		}
-
-		/* read/write to tarkov */
-
-
-	//	KeStackAttachProcess(tarkovprocess, &apc);
-	//	
-	//	if (!tagged_objects)
-	//		tagged_objects = (uintptr_t*)obj_manager;
-	//	if (!tagged_objects)
-	//		goto QUITREAD;
-	//	/*initiate*/
-	//	if (!active_objects)
-	//		active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
-	//	if (!active_objects[0] || !active_objects[1]) {
-	//		DebugMessage("activeobjects were null");
-	//		goto QUITREAD;
-	//	}
-	////	fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
-	//	//if (!fpscamera)
-	//	//	goto QUITREAD;
-	//	gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
-	//	if (/*!fpscamera || */ gameworld /* || !localgameworld*/)  {
-	//		fpscamera = getobjfromtag((void*)tagged_objects[1], (void*)tagged_objects[0]);
-	//		localgameworld = *(*(*((uintptr_t***)(gameworld + 0x30)) + 3) + 5);
-	//	//	tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
-	//	//	if (!tagged_objects[0] || !tagged_objects[1]) {
-	////			DebugMessage("tagged object(s) was null");
-	////			goto QUITREAD;
-	////		}
-	////	
-	//		//Timeout.QuadPart = RELATIVE(MILLISECONDS(d));
-	//	} else {
-	//		goto QUITREAD;
-	//	}
-	//	
-	//
-//	//	/*general (frame by frame) reading*/
-	//	uintptr_t localplayer = 0;
-	//
-	//	if (!localgameworld)
-	//		goto QUITREAD;
-	//	uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
-	//	if (!online)
-	//		goto QUITREAD;
-	//	uintptr_t listbase = *(uintptr_t*)(online + 0x10);
-	//	int nplayers = *(int*)(online + 0x18);
-//	//
-	//	if (nplayers <= 0 || !listbase)
-	//		goto QUITREAD;
-//	//
-	//	uintptr_t* players = (uintptr_t*)(listbase + 0x20);
-	//
-	//	if (!players)
-	//		goto QUITREAD;
-	//
-	//	/* loop through all! */
-	//	for (size_t i = 0; i < nplayers; i++) {
-	//		if (*(int*)(players[i] + 0x18))
-	//			localplayer = players[i];
-	//	}
-	//
-	//	if (!localplayer)
-	//		goto QUITREAD;
-	//	if (G_SETTINGS.norecoil)
-	//		norecoil(localplayer);
-	//	if (G_SETTINGS.sleightofhand)
-	//		speedcola(localplayer);
-	//	if (G_SETTINGS.speed)
-	//		staminup(localplayer);
-	//	if (unityplayer_base) {
-	//		speed(unityplayer_base, G_SETTINGS.speed);
-	//	}
-	//
-	//QUITREAD:
-	//	DebugMessage("tagged 0x%p | camera 0x%016llx\n", tagged_objects, fpscamera);
-	//	KeUnstackDetachProcess(&apc);
-
-
-	//	/* write to buffer */
-	//	KeStackAttachProcess(np, &apc);
-	//
-	//	
-	//	KeUnstackDetachProcess(&apc);
 	}
 
 }
