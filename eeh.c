@@ -544,57 +544,6 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 	return 0;
 }
 
-
-unsigned char isvalidpointer(void* ptr) 
-{
-	if (ptr >= (void*)0x1000U /*first page*/ && ptr <= (void*)0x7fff'ffff'ffff'ffffU /*usermode limit*/)
-		return 1;
-	else
-		return 0;
-}
-
-/*make sure to be attached when doing this*/
-uintptr_t getobjectfromlist(void* list, void* lastobj, char* obj_name)
-{
-	if (!list || !lastobj)
-		return 0;
-	unk1* last = lastobj;
-	unk1* first = list;
-	size_t len = strlen(obj_name);
-	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
-		if (!isvalidpointer(cur) || !isvalidpointer(cur->object) || !isvalidpointer((char*)(cur->object) + 0x60))
-			break;
-		DebugMessage("[%p] %s", cur, cur->object->objectname);
-		if (!str_cmp(cur->object->objectname, obj_name, len))
-			return (uintptr_t)cur->object;
-	}
-	return 0;
-}
-
-/*!BSOD! make sure to be attached when doing this !BSOD!*/
-uintptr_t getobjfromtag(void* list, void* lastobj)
-{
-	if (!list || !lastobj)
-		return 0;
-	unk1* last = lastobj;
-	unk1* first = list;
-	int i = 0;
-	for (unk1* cur = first; cur->object && cur->object != last->object; cur = cur->next) {
-		if (!isvalidpointer(cur) || !isvalidpointer(cur->object) || !isvalidpointer((char*)cur->object + 0x54))
-			break;
-		DebugMessage("%i : %i\n", i, cur->object->Tag);
-		if (last->object->Tag == 5U)
-			return (uintptr_t)cur->object;
-		i++;
-	}
-	if (!isvalidpointer(last) || !isvalidpointer(last->object) || !isvalidpointer((char*)last->object + 0x54))
-		return 0;
-	DebugMessage("%i : %i\n", i, last->object->Tag);
-	if (last->object->Tag == 5U)
-		return (uintptr_t)last->object;
-	return 0;
-}
-
 enum rqn {
 	READ = 1,
 	WRITE,
