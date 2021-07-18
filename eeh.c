@@ -650,7 +650,7 @@ void speedcola(uintptr_t localplayer)
 
 
 enum rqn {
-	READ,
+	READ = 1,
 	WRITE,
 	ALLOC,
 	GETMODBASE,
@@ -778,14 +778,6 @@ void thread()
 	KeUnstackDetachProcess(&apc);
 
 
-	struct settings G_SETTINGS = { 0 };
-	uintptr_t* active_objects = NULL;
-	uintptr_t* tagged_objects = NULL;
-
-	uintptr_t fpscamera = 0;
-	uintptr_t gameworld = 0;
-	uintptr_t localgameworld = 0;
-
 
 	KeStackAttachProcess(np, &apc);
 
@@ -800,32 +792,26 @@ void thread()
 		}
 		request* rq = (request*)buffers[1];
 		switch (rq->rn) {
-		case READ:
-			//Mmcopyvirtualmemory()
-			rq->rn = FUFILLED;
-			break;
-		case WRITE:
-			//Mmcopyvirtualmemory()
-			rq->rn = FUFILLED;
-			break;
-		case ALLOC:
-			//NtAllocateVirtualMemory()
-			rq->rn = FUFILLED;
-			break;
-		case GETMODBASE:
-			rq->rn = FUFILLED;
+		case 0:
 			break;
 		case FUFILLED:
 			break;
-		default:
-			DebugMessage("INVALID TYPE OF FUNCTION GIVEN");
+		case READ:
+			MmCopyVirtualMemory(np, (void*)rq->param2, tarkovprocess, (void*)rq->param3, rq->param1, UserMode, 0);
+			rq->rn = FUFILLED;
 			break;
-
+		case ALLOC:
+			rq->rn = FUFILLED;
+			break;
+		case GETMODBASE:
+			rq->param3 = unityplayer_base;
+				// dirty solution rn
+			rq->rn = FUFILLED;
+			break;
 		}
 
 		/* read/write to tarkov */
 
-		LARGE_INTEGER Timeout = { 0 }; 
 
 	//	KeStackAttachProcess(tarkovprocess, &apc);
 	//	
@@ -906,8 +892,6 @@ void thread()
 	//
 	//	
 	//	KeUnstackDetachProcess(&apc);
-
-		KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
 	}
 
 }
