@@ -648,6 +648,22 @@ void speedcola(uintptr_t localplayer)
 	*(int*)(botreloadspeed + 0x28) = 0x4000'0000;
 }
 
+
+enum rqn {
+	READ,
+	WRITE,
+	ALLOC,
+	GETMODBASE,
+	FUFILLED
+};
+
+typedef struct _request {
+	unsigned char rn;
+	uintptr_t param1;
+	uintptr_t param2;
+	uintptr_t param3;
+}request;
+
 void thread()
 {
 	DebugMessage("entering guarded region\n");
@@ -771,9 +787,10 @@ void thread()
 	uintptr_t localgameworld = 0;
 
 
+	KeStackAttachProcess(np, &apc);
+
 	while (1) {
-		/* read settings */
-		KeStackAttachProcess(np, &apc);
+		/* read and fufill requests */
 
 		if (*(DWORD32*)buffers[0] == 'TIXE') {
 			KeUnstackDetachProcess(&apc);
@@ -781,88 +798,107 @@ void thread()
 			DebugMessage("exiting [told to]\n");
 			return;
 		}
+		request* rq = (request*)buffers[1];
+		switch (rq->rn) {
+		case READ:
+			//Mmcopyvirtualmemory()
+			rq->rn = FUFILLED;
+			break;
+		case WRITE:
+			//Mmcopyvirtualmemory()
+			rq->rn = FUFILLED;
+			break;
+		case ALLOC:
+			//NtAllocateVirtualMemory()
+			rq->rn = FUFILLED;
+			break;
+		case GETMODBASE:
+			rq->rn = FUFILLED;
+			break;
+		case FUFILLED:
+			break;
+		default:
+			DebugMessage("INVALID TYPE OF FUNCTION GIVEN");
+			break;
 
-		G_SETTINGS = *(struct settings*)(base + settingsoffset);
-
-		KeUnstackDetachProcess(&apc);
+		}
 
 		/* read/write to tarkov */
 
 		LARGE_INTEGER Timeout = { 0 }; 
-		Timeout.QuadPart = RELATIVE(SECONDS(2));
 
-		KeStackAttachProcess(tarkovprocess, &apc);
-		
-		if (!tagged_objects)
-			tagged_objects = (uintptr_t*)obj_manager;
-		if (!tagged_objects)
-			goto QUITREAD;
-		/*initiate*/
-		if (!active_objects)
-			active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
-		if (!active_objects[0] || !active_objects[1]) {
-			DebugMessage("activeobjects were null");
-			goto QUITREAD;
-		}
-	//	fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
-		//if (!fpscamera)
-		//	goto QUITREAD;
-		gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
-		if (/*!fpscamera || */ gameworld /* || !localgameworld*/)  {
-			fpscamera = getobjfromtag((void*)tagged_objects[1], (void*)tagged_objects[0]);
-			localgameworld = *(*(*((uintptr_t***)(gameworld + 0x30)) + 3) + 5);
-		//	tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
-		//	if (!tagged_objects[0] || !tagged_objects[1]) {
-	//			DebugMessage("tagged object(s) was null");
-	//			goto QUITREAD;
-	//		}
+	//	KeStackAttachProcess(tarkovprocess, &apc);
 	//	
-			//Timeout.QuadPart = RELATIVE(MILLISECONDS(d));
-		} else {
-			goto QUITREAD;
-		}
-		
-
-//		/*general (frame by frame) reading*/
-		uintptr_t localplayer = 0;
-
-		if (!localgameworld)
-			goto QUITREAD;
-		uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
-		if (!online)
-			goto QUITREAD;
-		uintptr_t listbase = *(uintptr_t*)(online + 0x10);
-		int nplayers = *(int*)(online + 0x18);
-//
-		if (nplayers <= 0 || !listbase)
-			goto QUITREAD;
-//
-		uintptr_t* players = (uintptr_t*)(listbase + 0x20);
-
-		if (!players)
-			goto QUITREAD;
-
-		/* loop through all! */
-		for (size_t i = 0; i < nplayers; i++) {
-			if (*(int*)(players[i] + 0x18))
-				localplayer = players[i];
-		}
-
-		if (!localplayer)
-			goto QUITREAD;
-		if (G_SETTINGS.norecoil)
-			norecoil(localplayer);
-		if (G_SETTINGS.sleightofhand)
-			speedcola(localplayer);
-		if (G_SETTINGS.speed)
-			staminup(localplayer);
-		if (unityplayer_base) {
-			speed(unityplayer_base, G_SETTINGS.speed);
-		}
-
-	QUITREAD:
-		DebugMessage("tagged 0x%p | camera 0x%016llx\n", tagged_objects, fpscamera);
-		KeUnstackDetachProcess(&apc);
+	//	if (!tagged_objects)
+	//		tagged_objects = (uintptr_t*)obj_manager;
+	//	if (!tagged_objects)
+	//		goto QUITREAD;
+	//	/*initiate*/
+	//	if (!active_objects)
+	//		active_objects = (uintptr_t*)(lastActiveObject + obj_manager);
+	//	if (!active_objects[0] || !active_objects[1]) {
+	//		DebugMessage("activeobjects were null");
+	//		goto QUITREAD;
+	//	}
+	////	fpscamera = getobjectfromlist((void*)tagged_objects[1], (void*)tagged_objects[0], "FPS Camera");
+	//	//if (!fpscamera)
+	//	//	goto QUITREAD;
+	//	gameworld = getobjectfromlist((void*)active_objects[1], (void*)active_objects[0], "GameWorld");
+	//	if (/*!fpscamera || */ gameworld /* || !localgameworld*/)  {
+	//		fpscamera = getobjfromtag((void*)tagged_objects[1], (void*)tagged_objects[0]);
+	//		localgameworld = *(*(*((uintptr_t***)(gameworld + 0x30)) + 3) + 5);
+	//	//	tagged_objects = (uintptr_t*)(obj_manager + taggedObjects);
+	//	//	if (!tagged_objects[0] || !tagged_objects[1]) {
+	////			DebugMessage("tagged object(s) was null");
+	////			goto QUITREAD;
+	////		}
+	////	
+	//		//Timeout.QuadPart = RELATIVE(MILLISECONDS(d));
+	//	} else {
+	//		goto QUITREAD;
+	//	}
+	//	
+	//
+//	//	/*general (frame by frame) reading*/
+	//	uintptr_t localplayer = 0;
+	//
+	//	if (!localgameworld)
+	//		goto QUITREAD;
+	//	uintptr_t online = *(uintptr_t*)(localgameworld + off_registeredplayers);
+	//	if (!online)
+	//		goto QUITREAD;
+	//	uintptr_t listbase = *(uintptr_t*)(online + 0x10);
+	//	int nplayers = *(int*)(online + 0x18);
+//	//
+	//	if (nplayers <= 0 || !listbase)
+	//		goto QUITREAD;
+//	//
+	//	uintptr_t* players = (uintptr_t*)(listbase + 0x20);
+	//
+	//	if (!players)
+	//		goto QUITREAD;
+	//
+	//	/* loop through all! */
+	//	for (size_t i = 0; i < nplayers; i++) {
+	//		if (*(int*)(players[i] + 0x18))
+	//			localplayer = players[i];
+	//	}
+	//
+	//	if (!localplayer)
+	//		goto QUITREAD;
+	//	if (G_SETTINGS.norecoil)
+	//		norecoil(localplayer);
+	//	if (G_SETTINGS.sleightofhand)
+	//		speedcola(localplayer);
+	//	if (G_SETTINGS.speed)
+	//		staminup(localplayer);
+	//	if (unityplayer_base) {
+	//		speed(unityplayer_base, G_SETTINGS.speed);
+	//	}
+	//
+	//QUITREAD:
+	//	DebugMessage("tagged 0x%p | camera 0x%016llx\n", tagged_objects, fpscamera);
+	//	KeUnstackDetachProcess(&apc);
 
 
 	//	/* write to buffer */
