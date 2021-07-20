@@ -671,36 +671,43 @@ void thread()
 
 
 
-	KeStackAttachProcess(np, &apc);
 
 	while (1) {
 		/* read and fufill requests */
 
+		KeStackAttachProcess(np, &apc);
+		request rq = *(request*)buffers[1];
 		if (*(DWORD32*)buffers[0] == 'TIXE') {
-			KeUnstackDetachProcess(&apc);
 			shouldexit = 1;
+			KeUnstackDetachProcess(&apc);
+			KeLeaveGuardedRegion();
 			DebugMessage("exiting [told to]\n");
 			return;
 		}
-		request* rq = (request*)buffers[1];
-		switch (rq->rn) {
+		switch (rq.rn) {
 		case 0:
 			break;
 		case FUFILLED:
 			break;
 		case READ:
-			MmCopyVirtualMemory(np, (void*)rq->param2, tarkovprocess, (void*)rq->param3, rq->param1, UserMode, 0);
-			rq->rn = FUFILLED;
+			MmCopyVirtualMemory(np, (void*)rq.param2, tarkovprocess, (void*)rq.param3, rq.param1, UserMode, 0);
+			rq.rn = FUFILLED;
+			break;
+		case WRITE:
+			MmCopyVirtualMemory(tarkovprocess, (void*)rq.param2, np, (void*)rq.param3, rq.param1, UserMode, 0);
+			rq.rn = FUFILLED;
 			break;
 		case ALLOC:
-			rq->rn = FUFILLED;
+			rq.rn = FUFILLED;
 			break;
 		case GETMODBASE:
-			rq->param3 = unityplayer_base;
+			rq.param3 = unityplayer_base;
 				// dirty solution - I know I won't be finding any other dll bases
-			rq->rn = FUFILLED;
+			rq.rn = FUFILLED;
 			break;
 		}
+		*(request*)buffers[1] = rq;
+		KeUnstackDetachProcess(&apc);
 	}
 
 }
