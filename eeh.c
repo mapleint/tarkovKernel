@@ -109,6 +109,7 @@ PVOID ResolveRelativeAddress(PVOID Instruction, ULONG OffsetOffset, ULONG Instru
 
 int kernelbase()
 {
+
 	if (KERNEL != 0) {
 		DebugMessage("KERNEL: %p\nKERNEL SIZE : %x\n", KERNEL, KSIZE);
 		return 1;
@@ -544,21 +545,6 @@ PVOID getummod(PEPROCESS pProcess, PUNICODE_STRING ModuleName)
 	return 0;
 }
 
-enum rqn {
-	READ = 1,
-	WRITE,
-	ALLOC,
-	GETMODBASE,
-	FUFILLED
-};
-
-typedef struct _request {
-	unsigned char rn;
-	uintptr_t param1;
-	uintptr_t param2;
-	uintptr_t param3;
-}request;
-
 void thread()
 {
 	DebugMessage("entering guarded region\n");
@@ -680,7 +666,9 @@ void thread()
 
 }
 
-// very much possible under a MM driver, but args are invalid
+
+
+// args are invalid
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath)
 {
 	DebugMessage("hi\n");
